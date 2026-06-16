@@ -205,6 +205,17 @@
             box-shadow: 0 0 20px rgba(0, 200, 255, 0.5);
         }
 
+        #user-input:disabled,
+        #send-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        #send-btn:disabled:hover {
+            transform: none;
+            box-shadow: 0 0 12px rgba(0, 200, 255, 0.3);
+        }
+
         /* 타이핑 인디케이터 */
         .typing {
             display: flex;
@@ -293,26 +304,43 @@
         }
 
         function hideTyping() {
-            const t = document.getElementById('typing-indicator');
-            if (t) t.remove();
+            document.querySelectorAll('#typing-indicator').forEach(t => t.remove());
+        }
+
+        let isWaiting = false;
+
+        function setWaiting(waiting) {
+            isWaiting = waiting;
+            userInput.disabled = waiting;
+            sendBtn.disabled = waiting;
+            if (!waiting) userInput.focus();
         }
 
         async function sendMessage() {
+            if (isWaiting) return;
             const message = userInput.value.trim();
             if (!message) return;
 
+            setWaiting(true);
             addMessage('user', message);
             userInput.value = '';
             showTyping();
 
-            const res = await fetch('/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message })
-            });
-            const data = await res.json();
-            hideTyping();
-            addMessage('assistant', data.reply);
+            try {
+                const res = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message })
+                });
+                if (!res.ok) throw new Error('서버 오류 ' + res.status);
+                const data = await res.json();
+                addMessage('assistant', data.reply);
+            } catch (err) {
+                addMessage('assistant', '⚠️ 응답을 받지 못했어요. 잠시 후 다시 시도해주세요.');
+            } finally {
+                hideTyping();
+                setWaiting(false);
+            }
         }
 
         sendBtn.addEventListener('click', sendMessage);
